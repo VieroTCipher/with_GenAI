@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel de Auditoria IA x Close Notes</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #112035;
+      --muted: #5e6e84;
+      --border: #dbe3ef;
+      --ok: #0f8a5f;
+      --bad: #cf3e32;
+      --warn: #b7791f;
+      --accent: #0c4a6e;
+      --accent-2: #14b8a6;
+      --shadow: 0 12px 28px rgba(17, 32, 53, 0.08);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, #e5f2ff 0%, transparent 30%),
+        radial-gradient(circle at 90% 20%, #ddf8f5 0%, transparent 28%),
+        var(--bg);
+      min-height: 100vh;
+    }
+
+    header {
+      padding: 28px 22px 14px;
+    }
+
+    .title-wrap {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: linear-gradient(115deg, #0f2a4f, #0c4a6e 55%, #0e7490);
+      color: #f6fbff;
+      border-radius: 20px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.2rem, 2vw, 1.8rem);
+      letter-spacing: 0.3px;
+    }
+
+    .subtitle {
+      margin-top: 8px;
+      color: #cfe8ff;
+      font-size: 0.95rem;
+    }
+
+    main {
+      max-width: 1200px;
+      margin: 14px auto 30px;
+      padding: 0 22px;
+      display: grid;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .upload-card {
+      padding: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .drop-zone {
+      border: 2px dashed #8fb0d8;
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      background: linear-gradient(180deg, #f8fbff, #f3f9ff);
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.over {
+      transform: translateY(-1px);
+      border-color: #2b6cb0;
+      background: linear-gradient(180deg, #f1f8ff, #e9f4ff);
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 4px;
+    }
+
+    .hint {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.8rem;
+      color: #4d5d74;
+      background: #eef4fb;
+      border: 1px solid #d6e2f1;
+      padding: 10px;
+      border-radius: 10px;
+      word-break: break-word;
+    }
+
+    input[type="file"] { display: none; }
+
+    .status {
+      font-size: 0.9rem;
+      color: var(--muted);
+      min-height: 22px;
+    }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .kpi {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+      background: #fdfefe;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 5px;
+      background: var(--accent);
+    }
+
+    .kpi.ok::before { background: var(--ok); }
+    .kpi.bad::before { background: var(--bad); }
+    .kpi.warn::before { background: var(--warn); }
+
+    .kpi label {
+      display: block;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      font-weight: 700;
+    }
+
+    .kpi .value {
+      font-size: 1.9rem;
+      margin: 4px 0;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    .kpi .sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+
+    .viz {
+      padding: 14px;
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background: #fdfefe;
+    }
+
+    .panel h3 {
+      margin: 0 0 10px;
+      font-size: 0.95rem;
+    }
+
+    .bar {
+      margin-bottom: 10px;
+    }
+
+    .bar-head {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.83rem;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    .bar-track {
+      width: 100%;
+      height: 10px;
+      border-radius: 99px;
+      background: #e8eef7;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      width: 0;
+      transition: width 0.45s ease;
+    }
+
+    .green { background: linear-gradient(90deg, #34d399, #059669); }
+    .red { background: linear-gradient(90deg, #f87171, #dc2626); }
+    .orange { background: linear-gradient(90deg, #fbbf24, #d97706); }
+    .blue { background: linear-gradient(90deg, #60a5fa, #2563eb); }
+
+    .matrix {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .mx-item {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px;
+      background: #fff;
+    }
+
+    .mx-item .l {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .mx-item .n {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .tables {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .table-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .table-title {
+      padding: 10px 12px;
+      font-weight: 700;
+      font-size: 0.88rem;
+      border-bottom: 1px solid var(--border);
+      background: #f8fbff;
+    }
+
+    .scroll {
+      max-height: 360px;
+      overflow: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.8rem;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fbff;
+      z-index: 1;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+    }
+
+    tr:hover td { background: #f9fcff; }
+
+    .mono {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.74rem;
+      color: #3c4f67;
+    }
+
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .pill-fp { background: #fff1f2; color: #be123c; border-color: #fecdd3; }
+    .pill-fn { background: #fff7ed; color: #b45309; border-color: #fed7aa; }
+
+    @media (max-width: 930px) {
+      .viz, .tables { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-wrap">
+      <h1>Dashboard de Auditoria: IA vs Close Notes</h1>
+      <div class="subtitle">Comparacao oficial entre o veredito da IA (<strong>ai_phishing_verdict</strong>) e o campo de verdade operacional (<strong>close_notes</strong>).</div>
+    </div>
+  </header>
+
+  <main>
+    <section class="card upload-card">
+      <div class="drop-zone" id="dropZone">
+        <strong>Arraste o CSV classificado aqui</strong>
+        <div class="small">ou clique para selecionar o arquivo</div>
+      </div>
+      <input id="fileInput" type="file" accept=".csv,text/csv" />
+      <div class="hint">Colunas esperadas: number, eml_text, close_notes, ai_phishing_verdict</div>
+      <div class="status" id="statusText">Aguardando arquivo...</div>
+    </section>
+
+    <section class="card kpis" id="kpiGrid">
+      <article class="kpi"><label>Total de linhas</label><div class="value" id="kpiTotal">-</div><div class="sub">linhas no arquivo</div></article>
+      <article class="kpi ok"><label>Acuracia</label><div class="value" id="kpiAcc">-</div><div class="sub">(TP + TN) / validos</div></article>
+      <article class="kpi bad"><label>Falsos Positivos</label><div class="value" id="kpiFP">-</div><div class="sub">close_notes seguro + IA phishing</div></article>
+      <article class="kpi warn"><label>Falsos Negativos</label><div class="value" id="kpiFN">-</div><div class="sub">close_notes malicioso + IA seguro</div></article>
+      <article class="kpi"><label>Precisao (phishing)</label><div class="value" id="kpiPrecision">-</div><div class="sub">TP / (TP + FP)</div></article>
+      <article class="kpi"><label>Recall (phishing)</label><div class="value" id="kpiRecall">-</div><div class="sub">TP / (TP + FN)</div></article>
+    </section>
+
+    <section class="card viz">
+      <div class="panel">
+        <h3>Distribuicao de Erros</h3>
+        <div class="bar">
+          <div class="bar-head"><span>Falso Positivo</span><span id="barFpLabel">-</span></div>
+          <div class="bar-track"><div id="barFp" class="bar-fill red"></div></div>
+        </div>
+        <div class="bar">
+          <div class="bar-head"><span>Falso Negativo</span><span id="barFnLabel">-</span></div>
+          <div class="bar-track"><div id="barFn" class="bar-fill orange"></div></div>
+        </div>
+        <div class="bar">
+          <div class="bar-head"><span>Acertos (TP + TN)</span><span id="barHitLabel">-</span></div>
+          <div class="bar-track"><div id="barHit" class="bar-fill green"></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Matriz de Confusao (base valida)</h3>
+        <div class="matrix">
+          <div class="mx-item"><div class="l">TP</div><div class="n" id="mxTP">-</div></div>
+          <div class="mx-item"><div class="l">TN</div><div class="n" id="mxTN">-</div></div>
+          <div class="mx-item"><div class="l">FP</div><div class="n" id="mxFP">-</div></div>
+          <div class="mx-item"><div class="l">FN</div><div class="n" id="mxFN">-</div></div>
+        </div>
+        <div class="small" id="validInfo" style="margin-top:8px;">Linhas validas para comparacao: -</div>
+      </div>
+    </section>
+
+    <section class="card tables">
+      <div class="table-card">
+        <div class="table-title">Falsos Positivos</div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>RITM</th>
+                <th>IA</th>
+                <th>Close Notes</th>
+                <th>Trecho do EML</th>
+              </tr>
+            </thead>
+            <tbody id="fpBody">
+              <tr><td colspan="4" class="mono">Sem dados</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="table-card">
+        <div class="table-title">Falsos Negativos</div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>RITM</th>
+                <th>IA</th>
+                <th>Close Notes</th>
+                <th>Trecho do EML</th>
+              </tr>
+            </thead>
+            <tbody id="fnBody">
+              <tr><td colspan="4" class="mono">Sem dados</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const dropZone = document.getElementById("dropZone");
+    const statusText = document.getElementById("statusText");
+
+    dropZone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (e) => {
+      const file = e.target.files?.[0];
+      if (file) parseCsv(file);
+    });
+
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("over");
+    });
+
+    dropZone.addEventListener("dragleave", () => dropZone.classList.remove("over"));
+    dropZone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("over");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) parseCsv(file);
+    });
+
+    function normalizeText(s) {
+      return String(s || "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    }
+
+    function normalizeCloseNotes(closeNotes) {
+      const t = normalizeText(closeNotes);
+
+      if (t.includes("nao malicioso") || t.includes("nao-malicioso")) {
+        return "nao_phishing";
+      }
+      if (t.includes("malicioso")) {
+        return "phishing";
+      }
+      return "desconhecido";
+    }
+
+    function normalizeAiVerdict(verdict) {
+      const t = normalizeText(verdict);
+      if (!t || t === "erro" || t === "skipped") return "desconhecido";
+      if (t.includes("nao_phishing") || t.includes("nao phishing") || t.includes("naophishing")) return "nao_phishing";
+      if (t === "phishing" || (t.includes("phishing") && !t.includes("nao"))) return "phishing";
+      return "desconhecido";
+    }
+
+    function pct(part, total) {
+      if (!total) return "0.00%";
+      return ((part / total) * 100).toFixed(2) + "%";
+    }
+
+    function clip(s, n = 120) {
+      const v = String(s || "").replace(/\s+/g, " ").trim();
+      return v.length > n ? v.slice(0, n) + "..." : v;
+    }
+
+    function parseCsv(file) {
+      statusText.textContent = "Processando arquivo...";
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        worker: true,
+        complete: ({ data, errors, meta }) => {
+          if (errors?.length) {
+            statusText.textContent = "Erro ao parsear CSV: " + errors[0].message;
+            return;
+          }
+
+          const cols = meta?.fields || [];
+          const required = ["close_notes", "ai_phishing_verdict"];
+          const missing = required.filter((c) => !cols.includes(c));
+
+          if (missing.length) {
+            statusText.textContent = "Colunas ausentes: " + missing.join(", ");
+            return;
+          }
+
+          const result = evaluate(data);
+          render(result);
+
+          statusText.textContent =
+            `Arquivo: ${file.name} | Linhas: ${result.totalRows} | Validas: ${result.validRows}`;
+        },
+        error: (err) => {
+          statusText.textContent = "Falha na leitura: " + err.message;
+        }
+      });
+    }
+
+    function evaluate(rows) {
+      let tp = 0;
+      let tn = 0;
+      let fp = 0;
+      let fn = 0;
+      let validRows = 0;
+
+      const fpCases = [];
+      const fnCases = [];
+
+      for (const row of rows) {
+        const truth = normalizeCloseNotes(row.close_notes);
+        const pred = normalizeAiVerdict(row.ai_phishing_verdict);
+
+        if (truth === "desconhecido" || pred === "desconhecido") continue;
+        validRows += 1;
+
+        if (truth === "phishing" && pred === "phishing") tp += 1;
+        else if (truth === "nao_phishing" && pred === "nao_phishing") tn += 1;
+        else if (truth === "nao_phishing" && pred === "phishing") {
+          fp += 1;
+          fpCases.push(row);
+        } else if (truth === "phishing" && pred === "nao_phishing") {
+          fn += 1;
+          fnCases.push(row);
+        }
+      }
+
+      const accuracy = validRows ? (tp + tn) / validRows : 0;
+      const precision = (tp + fp) ? tp / (tp + fp) : 0;
+      const recall = (tp + fn) ? tp / (tp + fn) : 0;
+
+      return {
+        totalRows: rows.length,
+        validRows,
+        tp,
+        tn,
+        fp,
+        fn,
+        accuracy,
+        precision,
+        recall,
+        fpCases,
+        fnCases
+      };
+    }
+
+    function render(r) {
+      document.getElementById("kpiTotal").textContent = r.totalRows.toLocaleString("pt-BR");
+      document.getElementById("kpiAcc").textContent = pct(r.accuracy, 1);
+      document.getElementById("kpiFP").textContent = r.fp.toLocaleString("pt-BR");
+      document.getElementById("kpiFN").textContent = r.fn.toLocaleString("pt-BR");
+      document.getElementById("kpiPrecision").textContent = pct(r.precision, 1);
+      document.getElementById("kpiRecall").textContent = pct(r.recall, 1);
+
+      document.getElementById("mxTP").textContent = r.tp.toLocaleString("pt-BR");
+      document.getElementById("mxTN").textContent = r.tn.toLocaleString("pt-BR");
+      document.getElementById("mxFP").textContent = r.fp.toLocaleString("pt-BR");
+      document.getElementById("mxFN").textContent = r.fn.toLocaleString("pt-BR");
+      document.getElementById("validInfo").textContent =
+        `Linhas validas para comparacao: ${r.validRows.toLocaleString("pt-BR")}`;
+
+      const errTotal = r.validRows || 1;
+      const hit = r.tp + r.tn;
+
+      const fpPct = (r.fp / errTotal) * 100;
+      const fnPct = (r.fn / errTotal) * 100;
+      const hitPct = (hit / errTotal) * 100;
+
+      document.getElementById("barFp").style.width = fpPct.toFixed(2) + "%";
+      document.getElementById("barFn").style.width = fnPct.toFixed(2) + "%";
+      document.getElementById("barHit").style.width = hitPct.toFixed(2) + "%";
+
+      document.getElementById("barFpLabel").textContent = `${r.fp.toLocaleString("pt-BR")} (${fpPct.toFixed(2)}%)`;
+      document.getElementById("barFnLabel").textContent = `${r.fn.toLocaleString("pt-BR")} (${fnPct.toFixed(2)}%)`;
+      document.getElementById("barHitLabel").textContent = `${hit.toLocaleString("pt-BR")} (${hitPct.toFixed(2)}%)`;
+
+      const fpBody = document.getElementById("fpBody");
+      const fnBody = document.getElementById("fnBody");
+
+      fpBody.innerHTML = makeRows(r.fpCases, "fp");
+      fnBody.innerHTML = makeRows(r.fnCases, "fn");
+    }
+
+    function makeRows(items, type) {
+      if (!items.length) {
+        return `<tr><td colspan="4" class="mono">Sem ocorrencias.</td></tr>`;
+      }
+
+      return items.slice(0, 300).map((row) => {
+        const ritm = row.number || "-";
+        const verdict = row.ai_phishing_verdict || "-";
+        const close = row.close_notes || "-";
+        const text = clip(row.eml_text || "");
+
+        return `
+          <tr>
+            <td class="mono">${escapeHtml(ritm)} <span class="pill ${type === "fp" ? "pill-fp" : "pill-fn"}">${type.toUpperCase()}</span></td>
+            <td>${escapeHtml(verdict)}</td>
+            <td>${escapeHtml(clip(close, 100))}</td>
+            <td>${escapeHtml(text)}</td>
+          </tr>`;
+      }).join("");
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
