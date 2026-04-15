@@ -30,6 +30,11 @@ DEFAULT_ENDPOINT = (
 )
 VALID_VERDICTS = {"phishing", "nao_phishing"}
 
+# Defina aqui a partir de qual linha do CSV iniciar o processamento (1 = primeira linha de dados).
+# Use END_LINE = None para processar ate o final.
+START_LINE: int = 16496
+END_LINE: int | None = None
+
 
 @dataclass
 class RowItem:
@@ -312,8 +317,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sleep-ms", type=int, default=1000)
     parser.add_argument("--batch-size", type=int, default=6)
     parser.add_argument("--max-batch-chars", type=int, default=12000)
-    parser.add_argument("--start-line", type=int, default=1)
-    parser.add_argument("--end-line", type=int, default=None)
+    parser.add_argument("--start-line", type=int, default=START_LINE)
+    parser.add_argument("--end-line", type=int, default=END_LINE)
     return parser.parse_args()
 
 
